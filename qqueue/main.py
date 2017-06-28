@@ -21,11 +21,14 @@ def worker(state):
       logging.info("running {}...".format(cmd))
       with state['lock']:
         state['running'] += 1
-      os.system(cmd) # run job
+      retcode = os.system(cmd) # run job
       with state['lock']:
         state['running'] -= 1
-        state['finished'] += 1
-      logging.info("running {}: done".format(cmd))
+        if retcode == 0:
+          state['finished'] += 1
+        else:
+          state['failed'] += 1
+      logging.info("running {}: done. exit code was {}".format(cmd, retcode))
       state['queue'].task_done()
   return _worker
   
@@ -43,12 +46,13 @@ def execute(state, arg):
 
 def status(state, arg):
   with state['lock']:
-    return "{} jobs running, {} jobs finished.".format(state['running'], state['finished'])
+    return "{} jobs running, {} jobs finished. {} jobs failed.".format(state['running'], state['finished'], state['failed'])
 
 def done(state, arg):
   state['queue'].join()
   state['done'] = True
-  return "done"
+  with state['lock']:
+    return "{} jobs running, {} jobs finished. {} jobs failed.".format(state['running'], state['finished'], state['failed'])
 
 def start(args):
 
@@ -58,12 +62,12 @@ def start(args):
     'W': done
   }
 
-  state = { 'max': args.jobs, 'running': 0, 'finished': 0, 'queue': queue.Queue(), 'lock': multiprocessing.Lock(), 'done': False }
+  state = { 'max': args.jobs, 'running': 0, 'finished': 0, 'failed': 0, 'queue': queue.Queue(), 'lock': multiprocessing.Lock(), 'done': False }
 
   server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  server.bind((HOST, PORT))
+  server.bind((HOST, args.port))
   server.listen(10)
-  logging.info("listening on {}".format(PORT))
+  logging.info("listening on {}:{}".format(HOST, args.port))
 
   start_workers(state)
 
@@ -84,11 +88,12 @@ def start(args):
         response = 'Unrecognized command'
       client.send(response.encode())
     logging.debug("client disconnected")
+  logging.info("done")
 
-def connect(msg):
+def connect(msg, port):
   client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   logging.debug("client connecting...")
-  client.connect((HOST, PORT))
+  client.connect((HOST, port))
   logging.debug("client sending...")
   client.send(msg.encode())
   response = client.recv(BUFFER).decode()
@@ -99,19 +104,20 @@ def connect(msg):
 
 
 def add(args):
-  print(connect('E{}'.format(args.executable)))
+  print(connect('E{}'.format(args.executable), args.port))
 
 def client_status(args):
-  print(connect('S'))
+  print(connect('S', args.port))
 
 def client_wait(args):
-  print(connect('W'))
+  print(connect('W', args.port))
 
 def main():
   parser = argparse.ArgumentParser(description='Run jobs in parallel')
 
   parser.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
   parser.add_argument('--verbose', required=False, action='store_true')
+  parser.add_argument('--port', required=False, type=int, default=PORT, help='port to run on (default {})'.format(PORT))
   
   subparsers = parser.add_subparsers(help='available sub-commands', dest='subcommand')
   subparsers.required = True
