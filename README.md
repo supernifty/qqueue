@@ -41,3 +41,4 @@ qqueue wait
 
 ## TODO/Issues
 * pip installer
+* threaded requests (handle requests while join is in play)

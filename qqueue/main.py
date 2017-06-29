@@ -20,6 +20,7 @@ def worker(state):
       cmd = state['queue'].get() # blocks until job available
       logging.info("running {}...".format(cmd))
       with state['lock']:
+        state['queued'] -= 1
         state['running'] += 1
       retcode = os.system(cmd) # run job
       with state['lock']:
@@ -42,17 +43,19 @@ def start_workers(state):
 def execute(state, arg):
   logging.info("queueing {}".format(arg))
   state['queue'].put(arg)
+  with state['lock']:
+    state['queued'] += 1
   return "queued"
 
 def status(state, arg):
   with state['lock']:
-    return "{} jobs running, {} jobs finished. {} jobs failed.".format(state['running'], state['finished'], state['failed'])
+    return "{} jobs queued, {} jobs running, {} jobs finished. {} jobs failed.".format(state['queued'], state['running'], state['finished'], state['failed'])
 
 def done(state, arg):
   state['queue'].join()
   state['done'] = True
   with state['lock']:
-    return "{} jobs running, {} jobs finished. {} jobs failed.".format(state['running'], state['finished'], state['failed'])
+    return "{} jobs queued, {} jobs running, {} jobs finished. {} jobs failed.".format(state['queued'], state['running'], state['finished'], state['failed'])
 
 def start(args):
 
@@ -62,7 +65,7 @@ def start(args):
     'W': done
   }
 
-  state = { 'max': args.jobs, 'running': 0, 'finished': 0, 'failed': 0, 'queue': queue.Queue(), 'lock': multiprocessing.Lock(), 'done': False }
+  state = { 'max': args.jobs, 'queued': 0, 'running': 0, 'finished': 0, 'failed': 0, 'queue': queue.Queue(), 'lock': multiprocessing.Lock(), 'done': False }
 
   server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   server.bind((HOST, args.port))
