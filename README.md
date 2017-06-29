@@ -15,6 +15,23 @@ qqueue add executable # add executable to the job to run
 qqueue status # see how many jobs have started and finished
 qqueue wait # block until all jobs finished, then exit the server
 ```
+### Example
+
+Calculating the md5sum for a large number of files on an 8 core machine
+
+```
+# start the server
+qqueue start 8 &
+sleep 5
+
+# queue all the jobs
+for filename in filename_list; do
+  qqueue add "md5sum $f > $f.md5"
+done
+
+# wait for all jobs to finish
+qqueue wait
+```
 
 ## Options
 
