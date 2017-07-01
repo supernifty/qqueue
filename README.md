@@ -5,6 +5,9 @@ A simple implementation of a job queue with Python.
 Quickly run multiple jobs in parallel and keep a maximum number of jobs running simultaneously.
 
 ## Installation
+```
+pip install git+https://github.com/supernifty/qqueue
+```
 
 ## Usage
 ```
@@ -40,5 +43,4 @@ qqueue wait
 * --version: show the software version
 
 ## TODO/Issues
-* pip installer
 * threaded requests (handle requests while join is in play)
